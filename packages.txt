@@ -6,3 +6,7 @@ libxrandr2
 libgbm1
 libxkbcommon0
 libasound2
+libxdamage1
+libxcb-dri3-0
+libxfixes3
+libcups2
