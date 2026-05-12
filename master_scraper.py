@@ -70,19 +70,24 @@ def extract_youtube_id(url):
 
 def scrape_youtube_api(url):
     video_id = extract_youtube_id(url)
-    row = {f: 0 for f in FIELDNAMES}
-    row.update({"Platform": "YouTube", "URL": url, "Author": "", "Heading": "", "Createtime": ""})
+    
+    # เซ็ตค่าเริ่มต้นให้เป็น String เพื่อไม่ให้ PyArrow พังไปก่อนที่เราจะเห็น Error
+    row = {
+        "Platform": "YouTube", "URL": url, "Author": "", "Heading": "", "Createtime": "",
+        "Views": 0, "Engagement": 0, "Likes": 0, "Comments": 0, "Retweets_Shares": 0, "Reactions": 0
+    }
     
     if not video_id: 
-        print(f"⚠️ YouTube ID Error: หา Video ID ไม่เจอจาก URL นี้ -> {url}")
+        row["Heading"] = "ERROR: หา Video ID ไม่เจอ"
         return row
 
     api_url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id={video_id}&key={YOUTUBE_API_KEY}"
     try:
+        # ยิง API และดึงค่าเป็น JSON
         res = requests.get(api_url).json()
         
-        # ตรวจสอบว่าได้ข้อมูลสำเร็จหรือไม่
         if "items" in res and res["items"]:
+            # กรณีสำเร็จ ดึงข้อมูลตามปกติ
             item = res["items"][0]
             s = item.get("statistics", {})
             snip = item.get("snippet", {})
@@ -97,15 +102,16 @@ def scrape_youtube_api(url):
             })
             print(f"✅ YouTube Success: {url}")
             
-        # ดักจับ Error จาก Google API
-        elif "error" in res:
-            error_msg = res["error"].get("message", "Unknown API Error")
-            print(f"❌ YouTube API Blocked: {error_msg}")
-            
         else:
-            print(f"❌ YouTube No Data: วิดีโออาจถูกลบหรือเป็น Private")
+            # 🔴 กรณีล้มเหลว: ดึงข้อความ Error จาก Google มายัดใส่คอลัมน์ Heading
+            error_msg = res.get("error", {}).get("message", "Unknown API Error")
+            print(f"🔴 YOUTUBE RAW ERROR: {res}") # ปรินต์ทิ้งไว้ใน Logs ด้วย
+            
+            row["Author"] = "API_BLOCKED"
+            row["Heading"] = f"GOOGLE ERROR: {error_msg}"
             
     except Exception as e: 
+        row["Heading"] = f"REQUEST ERROR: {e}"
         print(f"❌ YouTube Request Error: {e}")
         
     return row
