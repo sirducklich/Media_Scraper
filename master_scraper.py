@@ -108,14 +108,14 @@ def scrape_selenium_task(url):
                 
                 if len(vals) >= 4:
                     # ถ้ามาครบ 4 ตัว (รวม View ที่ติดมากับ Class นี้)
-                    row["Comments"] = vals[1]
-                    row["Retweets_Shares"] = vals[2]
-                    row["Likes"] = vals[3]
+                    row["Comments"] = extract_numbers(vals[1])
+                    row["Retweets_Shares"] = extract_numbers(vals[2])
+                    row["Likes"] = extract_numbers(vals[3])
                 elif len(vals) == 3:
                     # ถ้ามาแค่ 3 ตัว (กรณี View ไม่ได้ใช้ Class เดียวกัน)
-                    row["Comments"] = vals[0]
-                    row["Retweets_Shares"] = vals[1]
-                    row["Likes"] = vals[2]
+                    row["Comments"] = extract_numbers(vals[0])
+                    row["Retweets_Shares"] = extract_numbers(vals[1])
+                    row["Likes"] = extract_numbers(vals[2])
                 else:
                     # ถ้ามาน้อยกว่านั้น ให้ลองใช้ fallback ดึงจาก data-testid สั้นๆ
                     row["Comments"] = extract_numbers(driver.find_element(By.XPATH, "//div[@data-testid='reply']").text)
