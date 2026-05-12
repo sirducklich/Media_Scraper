@@ -92,7 +92,19 @@ def scrape_selenium_task(url):
 async def scrape_tiktok_batch(urls):
     results = []
     async with TikTokApi() as api:
-        await api.create_sessions(ms_tokens=[os.environ.get("ms_token")], num_sessions=1, sleep_after=2)
+        await api.create_sessions(
+    ms_tokens=[os.environ.get("ms_token")], 
+    num_sessions=1, 
+    sleep_after=2,
+    headless=True,
+    args=[
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--single-process"
+    ]
+)
         for url in urls:
             row = {f: "" for f in FIELDNAMES}
             row.update({"Platform": "TikTok", "URL": url})
