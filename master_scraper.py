@@ -84,39 +84,48 @@ def scrape_selenium_task(url):
         
         # --- LOGIC: TWITTER ---
         if platform == "Twitter":
-            # 1. รอให้บทความหลักโหลดเสร็จ
-            wait.until(EC.presence_of_element_located((By.XPATH, "//article[@data-testid='tweet']")))
-            time.sleep(5) # ให้เวลา X โหลดสถิติจนนิ้ง
-
-            def get_x_stat_refined(testid):
-                try:
-                    # ดึง aria-label จากตัวปุ่ม (เช่น "38700 likes", "33 replies")
-                    element = driver.find_element(By.XPATH, f"//div[@data-testid='{testid}']")
-                    label = element.get_attribute("aria-label")
-                    # ใช้ extract_numbers แปลงข้อความที่มีตัวเลขให้เป็น int
-                    return extract_numbers(label)
-                except:
-                    # ถ้าหา data-testid ไม่เจอ ให้ลองหาจาก Text ภายในปุ่ม (Fallback)
-                    try:
-                        text_val = driver.find_element(By.XPATH, f"//div[@data-testid='{testid}']").text
-                        return extract_numbers(text_val)
-                    except:
-                        return 0
-
-            # 2. ดึงค่าแต่ละช่อง (data-testid เหล่านี้คือค่ามาตรฐานของ X)
-            row["Comments"] = get_x_stat_refined("reply")
-            row["Retweets_Shares"] = get_x_stat_refined("retweet")
-            row["Likes"] = get_x_stat_refined("like")
-
-            # 3. สำหรับ Views (X มักไม่ใส่ใน aria-label ของปุ่ม แต่ใช้แท็กสถิติแยก)
+            # 1. ยอด View (ใช้แบบเดิมที่คุณบอกว่าทำได้ดีอยู่แล้ว)
             try:
-                # พยายามหาจากยอดวิวข้างๆ ปุ่ม Analytics
-                v_el = driver.find_element(By.XPATH, "//a[contains(@href, '/analytics')]//span | //div[contains(@data-testid, 'analytics')]//span")
-                row["Views"] = extract_numbers(v_el.text)
+                # แก้ไขตามวิธีเดิมที่คุณใช้แล้วได้ผลดี
+                view_el = driver.find_element(By.XPATH, "//a[contains(@href, '/analytics')]//span | //div[contains(@data-testid, 'analytics')]//span")
+                row["Views"] = extract_numbers(view_el.text)
             except:
                 row["Views"] = 0
 
-            # 4. คำนวณ Engagement
+            # 2. ยอด Engagement (กลับไปใช้วิธี Class ที่คุณต้องการ แต่ทำให้ฉลาดขึ้น)
+            try:
+                # รอให้ Element ของตัวเลขปรากฏ
+                wait.until(EC.presence_of_all_elements_located((By.XPATH, "//div[contains(@class, 'css-175oi2r r-xoduu5 r-1udh08x')]")))
+                time.sleep(2) # เผื่อเวลาให้ตัวเลขวิ่งนิ่งๆ
+                
+                elements = driver.find_elements(By.XPATH, "//div[contains(@class, 'css-175oi2r r-xoduu5 r-1udh08x')]")
+                # ดึงเฉพาะ Text ที่ไม่ว่าง และแปลงเป็นตัวเลขทันที
+                vals = [extract_numbers(e.text) for e in elements if e.text.strip()]
+
+                # ปกติ X จะเรียงลำดับในกลุ่มนี้เป็น: [0]=Views, [1]=Replies, [2]=Retweets, [3]=Likes
+                # แต่เนื่องจากเราแยก Views ออกไปแล้ว เราจะสนใจแค่ 3 ตัวหลัง
+                # และเพื่อกันพลาด เราจะเช็คว่ามีข้อมูลพอไหม
+                
+                if len(vals) >= 4:
+                    # ถ้ามาครบ 4 ตัว (รวม View ที่ติดมากับ Class นี้)
+                    row["Comments"] = vals[1]
+                    row["Retweets_Shares"] = vals[2]
+                    row["Likes"] = vals[3]
+                elif len(vals) == 3:
+                    # ถ้ามาแค่ 3 ตัว (กรณี View ไม่ได้ใช้ Class เดียวกัน)
+                    row["Comments"] = vals[0]
+                    row["Retweets_Shares"] = vals[1]
+                    row["Likes"] = vals[2]
+                else:
+                    # ถ้ามาน้อยกว่านั้น ให้ลองใช้ fallback ดึงจาก data-testid สั้นๆ
+                    row["Comments"] = extract_numbers(driver.find_element(By.XPATH, "//div[@data-testid='reply']").text)
+                    row["Retweets_Shares"] = extract_numbers(driver.find_element(By.XPATH, "//div[@data-testid='retweet']").text)
+                    row["Likes"] = extract_numbers(driver.find_element(By.XPATH, "//div[@data-testid='like']").text)
+
+            except Exception as e:
+                print(f"⚠️ Engagement error, trying fallback: {e}")
+
+            # 3. คำนวณผลรวม Engagement
             row["Engagement"] = row["Comments"] + row["Retweets_Shares"] + row["Likes"]
 
         # --- LOGIC: FACEBOOK (เสริมจากโค้ดที่คุณให้มา) ---
