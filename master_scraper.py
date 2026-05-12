@@ -84,42 +84,42 @@ def scrape_selenium_task(url):
         
         # --- LOGIC: TWITTER ---
         if platform == "Twitter":
-            # 1. รอให้บทความหลัก (Tweet) โหลดขึ้นมาก่อน
+            # 1. รอให้บทความหลักโหลดเสร็จ
             wait.until(EC.presence_of_element_located((By.XPATH, "//article[@data-testid='tweet']")))
-            time.sleep(3) # รอให้ตัวเลข JavaScript Render ให้เสร็จ
+            time.sleep(4) # ให้เวลาระบบ Render ตัวเลข Animation
 
-            # 2. ใช้การดึงสถิติจากกลุ่ม aria-label ซึ่ง X ใช้ระบุประเภทข้อมูลแน่นอนกว่า Class
-            def get_x_stat(label_name):
+            def get_x_number(testid):
                 try:
-                    # หา Element ที่มี aria-label ตรงกับชื่อประเภท (เช่น '38,000 likes')
-                    xpath = f"//div[contains(@aria-label, '{label_name}')]"
-                    element = driver.find_element(By.XPATH, xpath)
-                    return element.get_attribute("aria-label")
+                    # เจาะจงไปที่กลุ่มของปุ่มสถิตินั้นๆ แล้วดึง Text ที่อยู่ข้างใน
+                    element = driver.find_element(By.XPATH, f"//div[@data-testid='{testid}']//span")
+                    return element.text
                 except:
                     return "0"
 
-            # ดึงค่าดิบ (เช่น "38K likes", "33 replies")
-            raw_likes = get_x_stat("likes")
-            raw_replies = get_x_stat("replies")
-            raw_retweets = get_x_stat("retweets") # หรือ "reposts" สำหรับเวอร์ชันใหม่
+            # 2. ดึงค่าทีละช่องตาม data-testid ของ X โดยตรง
+            raw_replies = get_x_number("reply")     # ช่อง Comment/Reply
+            raw_retweets = get_x_number("retweet")  # ช่อง Retweet/Repost
+            raw_likes = get_x_number("like")        # ช่อง Like
 
-            # 3. สำหรับ Views (X มักไม่ใส่ใน aria-label ของปุ่ม แต่ใส่ใน Text แยก)
+            # 3. สำหรับ Views (X แยกโครงสร้าง View ต่างจากพวก Reply/Like)
             try:
-                # พยายามหา Span ที่มีคำว่า Views หรือตัวเลขที่อยู่โดดๆ ในกลุ่มสถิติ
+                # ลองหาจาก Analytics Link ก่อน (ปกติจะเป็นช่องแรกสุด)
                 view_element = driver.find_element(By.XPATH, "//a[contains(@href, '/analytics')]//span")
                 raw_views = view_element.text
             except:
                 try:
-                    # fallback หาจากโครงสร้างที่เป็นสถิติด้านล่าง tweet
+                    # Fallback กรณีโครงสร้างแบบเก่า
                     raw_views = driver.find_element(By.XPATH, "//span[contains(text(), 'Views')]/preceding-sibling::span").text
                 except:
                     raw_views = "0"
 
-            # 4. แปลงค่าด้วย extract_numbers
+            # 4. ทำความสะอาดข้อมูลและคำนวณ
             row["Views"] = extract_numbers(raw_views)
             row["Comments"] = extract_numbers(raw_replies)
             row["Retweets_Shares"] = extract_numbers(raw_retweets)
             row["Likes"] = extract_numbers(raw_likes)
+            
+            # ผลรวม Engagement (33 + 33,000 + 38,000 = 71,033)
             row["Engagement"] = row["Comments"] + row["Retweets_Shares"] + row["Likes"]
 
         # --- LOGIC: FACEBOOK (เสริมจากโค้ดที่คุณให้มา) ---
