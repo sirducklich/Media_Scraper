@@ -97,7 +97,7 @@ async def scrape_tiktok_batch(urls):
     num_sessions=1, 
     sleep_after=2,
     headless=True,
-    args=[
+    override_browser_args=[
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
