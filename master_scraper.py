@@ -185,7 +185,7 @@ def main():
     final_data = []
 
     if yt_urls:
-        with ThreadPoolExecutor(max_workers=5) as exec:
+        with ThreadPoolExecutor(max_workers=1) as exec:
             final_data.extend(list(exec.map(scrape_youtube_api, yt_urls)))
 
     if sel_urls:

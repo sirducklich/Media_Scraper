@@ -5,3 +5,4 @@ webdriver-manager
 TikTokApi
 playwright
 playwright-stealth
+requests
