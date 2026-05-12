@@ -72,11 +72,16 @@ def scrape_youtube_api(url):
     video_id = extract_youtube_id(url)
     row = {f: 0 for f in FIELDNAMES}
     row.update({"Platform": "YouTube", "URL": url, "Author": "", "Heading": "", "Createtime": ""})
-    if not video_id: return row
+    
+    if not video_id: 
+        print(f"⚠️ YouTube ID Error: หา Video ID ไม่เจอจาก URL นี้ -> {url}")
+        return row
 
     api_url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id={video_id}&key={YOUTUBE_API_KEY}"
     try:
         res = requests.get(api_url).json()
+        
+        # ตรวจสอบว่าได้ข้อมูลสำเร็จหรือไม่
         if "items" in res and res["items"]:
             item = res["items"][0]
             s = item.get("statistics", {})
@@ -91,7 +96,18 @@ def scrape_youtube_api(url):
                 "Engagement": int(s.get("likeCount", 0)) + int(s.get("commentCount", 0))
             })
             print(f"✅ YouTube Success: {url}")
-    except Exception as e: print(f"❌ YouTube Error: {e}")
+            
+        # ดักจับ Error จาก Google API
+        elif "error" in res:
+            error_msg = res["error"].get("message", "Unknown API Error")
+            print(f"❌ YouTube API Blocked: {error_msg}")
+            
+        else:
+            print(f"❌ YouTube No Data: วิดีโออาจถูกลบหรือเป็น Private")
+            
+    except Exception as e: 
+        print(f"❌ YouTube Request Error: {e}")
+        
     return row
 
 # ─────────────────────────────────────────────────────────────────────────────
