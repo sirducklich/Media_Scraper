@@ -71,7 +71,8 @@ def extract_youtube_id(url):
 def scrape_youtube_api(url):
     video_id = extract_youtube_id(url)
     
-    # เซ็ตค่าเริ่มต้นให้เป็น String เพื่อไม่ให้ PyArrow พังไปก่อนที่เราจะเห็น Error
+    # 🌟 จุดสำคัญ: เซ็ตค่าเริ่มต้นให้ตรง Data Type (String คู่กับ "", Number คู่กับ 0) 
+    # เพื่อป้องกันไม่ให้ Streamlit/PyArrow แครชตอนวาดตาราง
     row = {
         "Platform": "YouTube", "URL": url, "Author": "", "Heading": "", "Createtime": "",
         "Views": 0, "Engagement": 0, "Likes": 0, "Comments": 0, "Retweets_Shares": 0, "Reactions": 0
@@ -83,11 +84,9 @@ def scrape_youtube_api(url):
 
     api_url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id={video_id}&key={YOUTUBE_API_KEY}"
     try:
-        # ยิง API และดึงค่าเป็น JSON
         res = requests.get(api_url).json()
         
         if "items" in res and res["items"]:
-            # กรณีสำเร็จ ดึงข้อมูลตามปกติ
             item = res["items"][0]
             s = item.get("statistics", {})
             snip = item.get("snippet", {})
@@ -103,10 +102,8 @@ def scrape_youtube_api(url):
             print(f"✅ YouTube Success: {url}")
             
         else:
-            # 🔴 กรณีล้มเหลว: ดึงข้อความ Error จาก Google มายัดใส่คอลัมน์ Heading
             error_msg = res.get("error", {}).get("message", "Unknown API Error")
-            print(f"🔴 YOUTUBE RAW ERROR: {res}") # ปรินต์ทิ้งไว้ใน Logs ด้วย
-            
+            print(f"🔴 YOUTUBE RAW ERROR: {res}") 
             row["Author"] = "API_BLOCKED"
             row["Heading"] = f"GOOGLE ERROR: {error_msg}"
             
