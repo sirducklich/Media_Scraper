@@ -1,5 +1,12 @@
 import os
-os.system("playwright install chromium")
+import streamlit as st
+
+# --- โค้ดส่วนนี้จะบังคับให้ Streamlit ติดตั้ง Browser แค่ครั้งเดียวตอนเปิดแอป ---
+@st.cache_resource
+def install_playwright():
+    os.system("playwright install chromium")
+
+install_playwright()
 
 import streamlit as st
 import pandas as pd
