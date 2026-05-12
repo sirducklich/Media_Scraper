@@ -29,32 +29,6 @@ options = webdriver.ChromeOptions()
 options.add_argument("--headless")  # Run in the background
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-# Your Twitter credentials
-load_dotenv()
-
-# Log into Twitter
-def twitter_login():
-    driver.get("https://twitter.com/login")
-    time.sleep(2)  # Wait for the login page to load
-
-    # Enter username/handle
-    username_field = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.NAME, "text"))
-    )
-    username_field.send_keys(USERNAME)
-    username_field.send_keys(Keys.RETURN)
-    time.sleep(2)  # Wait for the password field to load
-
-    # Enter password
-    password_field = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.NAME, "password"))
-    )
-    password_field.send_keys(PASSWORD)
-    password_field.send_keys(Keys.RETURN)
-    time.sleep(5)  # Wait for login to complete
-
-# Perform the login
-#twitter_login()
 
 # Open and read URLs from the file
 with open("X/Twitter_urls.txt", "r") as file:
