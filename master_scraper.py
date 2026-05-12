@@ -1,9 +1,10 @@
 import csv
+import platform
 import time
 import re
 import asyncio
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 
 # ── Selenium ──────────────────────────────────────────────────────────────────
 from selenium import webdriver
@@ -83,18 +84,42 @@ def scrape_selenium_task(url):
         
         # --- LOGIC: TWITTER ---
         if platform == "Twitter":
+            # 1. รอให้บทความหลัก (Tweet) โหลดขึ้นมาก่อน
             wait.until(EC.presence_of_element_located((By.XPATH, "//article[@data-testid='tweet']")))
-            
-            def get_tw_stat(testid):
-                try:
-                    return driver.find_element(By.XPATH, f"//div[@data-testid='{testid}']").text
-                except: return "0"
+            time.sleep(3) # รอให้ตัวเลข JavaScript Render ให้เสร็จ
 
-            # ดึงค่าผ่าน Data-TestID (แม่นยำที่สุด)
-            row["Views"] = extract_numbers(get_tw_stat("app_text_transition_container"))
-            row["Comments"] = extract_numbers(get_tw_stat("reply"))
-            row["Retweets_Shares"] = extract_numbers(get_tw_stat("retweet"))
-            row["Likes"] = extract_numbers(get_tw_stat("like"))
+            # 2. ใช้การดึงสถิติจากกลุ่ม aria-label ซึ่ง X ใช้ระบุประเภทข้อมูลแน่นอนกว่า Class
+            def get_x_stat(label_name):
+                try:
+                    # หา Element ที่มี aria-label ตรงกับชื่อประเภท (เช่น '38,000 likes')
+                    xpath = f"//div[contains(@aria-label, '{label_name}')]"
+                    element = driver.find_element(By.XPATH, xpath)
+                    return element.get_attribute("aria-label")
+                except:
+                    return "0"
+
+            # ดึงค่าดิบ (เช่น "38K likes", "33 replies")
+            raw_likes = get_x_stat("likes")
+            raw_replies = get_x_stat("replies")
+            raw_retweets = get_x_stat("retweets") # หรือ "reposts" สำหรับเวอร์ชันใหม่
+
+            # 3. สำหรับ Views (X มักไม่ใส่ใน aria-label ของปุ่ม แต่ใส่ใน Text แยก)
+            try:
+                # พยายามหา Span ที่มีคำว่า Views หรือตัวเลขที่อยู่โดดๆ ในกลุ่มสถิติ
+                view_element = driver.find_element(By.XPATH, "//a[contains(@href, '/analytics')]//span")
+                raw_views = view_element.text
+            except:
+                try:
+                    # fallback หาจากโครงสร้างที่เป็นสถิติด้านล่าง tweet
+                    raw_views = driver.find_element(By.XPATH, "//span[contains(text(), 'Views')]/preceding-sibling::span").text
+                except:
+                    raw_views = "0"
+
+            # 4. แปลงค่าด้วย extract_numbers
+            row["Views"] = extract_numbers(raw_views)
+            row["Comments"] = extract_numbers(raw_replies)
+            row["Retweets_Shares"] = extract_numbers(raw_retweets)
+            row["Likes"] = extract_numbers(raw_likes)
             row["Engagement"] = row["Comments"] + row["Retweets_Shares"] + row["Likes"]
 
         # --- LOGIC: FACEBOOK (เสริมจากโค้ดที่คุณให้มา) ---
@@ -110,7 +135,7 @@ def scrape_selenium_task(url):
                 
                 try:
                     # พยายามหา Reaction ใน Video
-                    r_text = driver.find_element(By.XPATH, "//div[contains(@aria-label, 'reactions')]|//span[contains(@class, 'xrbp0b2')]").text
+                    r_text = driver.find_element(By.XPATH, "//div[contains(@class, 'x1i10hfl xjbqb8w x1ejq31n x18oe1m7 x1sy0etr xstzfhl x972fbf x10w94by x1qhh985 x14e42zd x9f619 x1ypdohk x3ct3a4 xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x18d9i69 x1c1uobl x16tdsg8 x1hl2dhg xggy1nq x1fmog5m xu25z0z x140muxe xo1y3bh x1n2onr6 x87ps6o x1lku1pv x1a2a7pz x1heor9g x78zum5 x6ikm8r x10wlt62')]").text
                     row["Likes"] = extract_numbers(r_text)
                 except: row["Likes"] = 0
             else:
