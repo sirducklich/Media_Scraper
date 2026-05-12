@@ -84,15 +84,8 @@ def scrape_selenium_task(url):
         
         # --- LOGIC: TWITTER ---
         if platform == "Twitter":
-            # 1. ยอด View (ใช้แบบเดิมที่คุณบอกว่าทำได้ดีอยู่แล้ว)
-            try:
-                # แก้ไขตามวิธีเดิมที่คุณใช้แล้วได้ผลดี
-                view_el = driver.find_element(By.XPATH, "//a[contains(@href, '/analytics')]//span | //div[contains(@data-testid, 'analytics')]//span")
-                row["Views"] = extract_numbers(view_el.text)
-            except:
-                row["Views"] = 0
 
-            # 2. ยอด Engagement (กลับไปใช้วิธี Class ที่คุณต้องการ แต่ทำให้ฉลาดขึ้น)
+            # x. ยอด Engagement (กลับไปใช้วิธี Class ที่คุณต้องการ แต่ทำให้ฉลาดขึ้น)
             try:
                 # รอให้ Element ของตัวเลขปรากฏ
                 wait.until(EC.presence_of_all_elements_located((By.XPATH, "//div[contains(@class, 'css-175oi2r r-xoduu5 r-1udh08x')]")))
@@ -108,6 +101,7 @@ def scrape_selenium_task(url):
                 
                 if len(vals) >= 4:
                     # ถ้ามาครบ 4 ตัว (รวม View ที่ติดมากับ Class นี้)
+                    row["Views"] = extract_numbers(vals[0])
                     row["Comments"] = extract_numbers(vals[1])
                     row["Retweets_Shares"] = extract_numbers(vals[2])
                     row["Likes"] = extract_numbers(vals[3])
