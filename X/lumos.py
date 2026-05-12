@@ -1,6 +1,7 @@
 import csv
 import time
 import re
+from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -29,8 +30,7 @@ options.add_argument("--headless")  # Run in the background
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 # Your Twitter credentials
-USERNAME = "@GailZz1"  # Update with your handle as needed
-PASSWORD = "0875059799"
+load_dotenv()
 
 # Log into Twitter
 def twitter_login():

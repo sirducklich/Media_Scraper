@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import asyncio
-from master_scraper import scrape_selenium_task, scrape_tiktok_batch # ดึงฟังก์ชันเดิมมาใช้
+from Master_Scraper.master_scraper import scrape_selenium_task, scrape_tiktok_batch # ดึงฟังก์ชันเดิมมาใช้
 
 # ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="Social Media Scraper", layout="wide")
