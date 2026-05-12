@@ -43,15 +43,20 @@ def extract_numbers(text: str) -> int:
 
 def get_driver():
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new") # ใช้โหมด Headless แบบใหม่ เสถียรกว่า
+    chrome_options.add_argument("--headless=new") 
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    
-    # เพิ่ม User-Agent เพื่อพรางตัวไม่ให้โดนบล็อก
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     
-    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    # 1. ชี้เป้าไปที่ตำแหน่งของโปรแกรม Chromium บน Streamlit Cloud
+    chrome_options.binary_location = "/usr/bin/chromium"
+    
+    # 2. ชี้เป้าไปที่ตำแหน่งของ ChromeDriver บน Streamlit Cloud ตรงๆ
+    service = Service("/usr/bin/chromedriver")
+    
+    # ลบการใช้งาน ChromeDriverManager().install() ออกไปเลย
+    return webdriver.Chrome(service=service, options=chrome_options)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SCRAPING LOGIC (ENHANCED)
