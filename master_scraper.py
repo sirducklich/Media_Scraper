@@ -64,35 +64,78 @@ def get_driver():
 
 def scrape_selenium_task(url):
     """ฟังก์ชันกลางสำหรับคัดกรอง Platform และจัดการ Selenium Driver รายตัว"""
-    platform = "Facebook" if "facebook.com" in url or "fb.watch" in url else "Twitter"
+    # แยกประเภท Platform
+    if "facebook.com" in url or "fb.watch" in url:
+        platform = "Facebook"
+    elif "x.com" in url or "twitter.com" in url:
+        platform = "Twitter"
+    else:
+        return None
+
     driver = get_driver()
-    wait = WebDriverWait(driver, 15)
-    row = {f: "" for f in FIELDNAMES}
+    # เพิ่มความเร็วโดยการตั้งค่า Wait ที่เหมาะสม
+    wait = WebDriverWait(driver, 15) 
+    row = {f: 0 for f in FIELDNAMES} # Default เป็น 0 ทั้งหมดเพื่อป้องกัน Error ตอนบวกเลข
     row.update({"Platform": platform, "URL": url})
 
     try:
         driver.get(url)
+        
+        # --- LOGIC: TWITTER ---
         if platform == "Twitter":
-            # ใช้ Wait แทนการ time.sleep เพื่อความเร็ว
-            elements = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//div[contains(@class, 'css-175oi2r r-xoduu5 r-1udh08x')]")))
-            vals = [e.text for e in elements if e.text.strip()]
-            row["Views"] = extract_numbers(vals[0]) if len(vals) > 0 else 0
-            row["Comments"] = extract_numbers(vals[1]) if len(vals) > 1 else 0
-            row["Retweets_Shares"] = extract_numbers(vals[2]) if len(vals) > 2 else 0
-            row["Likes"] = extract_numbers(vals[3]) if len(vals) > 3 else 0
+            wait.until(EC.presence_of_element_located((By.XPATH, "//article[@data-testid='tweet']")))
+            
+            def get_tw_stat(testid):
+                try:
+                    return driver.find_element(By.XPATH, f"//div[@data-testid='{testid}']").text
+                except: return "0"
+
+            # ดึงค่าผ่าน Data-TestID (แม่นยำที่สุด)
+            row["Views"] = extract_numbers(get_tw_stat("app_text_transition_container"))
+            row["Comments"] = extract_numbers(get_tw_stat("reply"))
+            row["Retweets_Shares"] = extract_numbers(get_tw_stat("retweet"))
+            row["Likes"] = extract_numbers(get_tw_stat("like"))
             row["Engagement"] = row["Comments"] + row["Retweets_Shares"] + row["Likes"]
-            
+
+        # --- LOGIC: FACEBOOK (เสริมจากโค้ดที่คุณให้มา) ---
         elif platform == "Facebook":
-            # ปรับปรุง Logic การดึงข้อมูล FB ให้ยืดหยุ่นขึ้น
-            time.sleep(3) # FB มักต้องการเวลาโหลดมากกว่าปกติ
-            try:
-                row["Views"] = extract_numbers(driver.find_element(By.XPATH, "//span[contains(text(), 'Views')]|//span[contains(@class, '_26fq')]").text)
-            except: row["Views"] = 0
-            # ... (ใส่ Logic การดึง Reaction/Comment เพิ่มเติมได้ที่นี่)
+            time.sleep(5) # Facebook ต้องรอให้ตัวเลข Animation วิ่งเสร็จ
             
+            if "/videos" in url or "/watch" in url:
+                # กรณีเป็น Video
+                try:
+                    v_text = driver.find_element(By.XPATH, "//span[contains(@class, '_26fq')]|//span[contains(text(), 'Views')]").text
+                    row["Views"] = extract_numbers(v_text)
+                except: row["Views"] = 0
+                
+                try:
+                    # พยายามหา Reaction ใน Video
+                    r_text = driver.find_element(By.XPATH, "//div[contains(@aria-label, 'reactions')]|//span[contains(@class, 'xrbp0b2')]").text
+                    row["Likes"] = extract_numbers(r_text)
+                except: row["Likes"] = 0
+            else:
+                # กรณีเป็น Post ปกติ (Photo/Link)
+                try:
+                    r_text = driver.find_element(By.XPATH, "//span[@class='xrbp0b2']|//div[contains(@aria-label, 'Reactions')]").text
+                    row["Likes"] = extract_numbers(r_text)
+                except: row["Likes"] = 0
+
+            # ดึง Comments และ Shares (มักจะใช้ Class xkrqix3 เหมือนกัน)
+            try:
+                elements = driver.find_elements(By.XPATH, "//span[contains(@class, 'xkrqix3')]|//div[contains(@data-testid, 'UFI2CommentsCount')]")
+                # กรองเอาเฉพาะตัวเลข
+                stat_vals = [extract_numbers(e.text) for e in elements if e.text.strip()]
+                row["Comments"] = stat_vals[0] if len(stat_vals) > 0 else 0
+                row["Retweets_Shares"] = stat_vals[1] if len(stat_vals) > 1 else 0
+            except:
+                pass
+
+            row["Engagement"] = row["Likes"] + row["Comments"] + row["Retweets_Shares"]
+
         print(f"✅ {platform} Success: {url}")
+        
     except Exception as e:
-        print(f"❌ {platform} Error {url}: {str(e)[:50]}")
+        print(f"❌ {platform} Error {url}: {str(e)[:100]}")
     finally:
         driver.quit()
     return row
