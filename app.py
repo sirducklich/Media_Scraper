@@ -24,7 +24,7 @@ from master_scraper import scrape_selenium_task, scrape_tiktok_batch # ดึง
 st.set_page_config(page_title="Social Media Scraper", layout="wide")
 
 st.title("📱 Social Media Analytics Scraper")
-st.write("เครื่องมือดึงข้อมูลยอด View และ Engagement สำหรับทีม Analyst")
+st.write("เครื่องมือดึงข้อมูลยอด View และ Engagement สำหรับทีม Analyst (ขณะนี้รองรับ Facebook, X/Twitter และ TikTok)")
 
 # ส่วนที่ 1: การนำเข้าข้อมูล
 st.sidebar.header("Configuration")
