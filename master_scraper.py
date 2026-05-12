@@ -100,8 +100,8 @@ def scrape_selenium_task(url):
                 
                 elements = driver.find_elements(By.XPATH, "//div[contains(@class, 'css-175oi2r r-xoduu5 r-1udh08x')]")
                 # ดึงเฉพาะ Text ที่ไม่ว่าง และแปลงเป็นตัวเลขทันที
-                vals = [extract_numbers(e.text) for e in elements if e.text.strip()]
-
+                vals = [elem.text for elem in elements if elem.text.strip()]
+                #extracted_values = [elem.text for elem in elements if elem.text.strip()]
                 # ปกติ X จะเรียงลำดับในกลุ่มนี้เป็น: [0]=Views, [1]=Replies, [2]=Retweets, [3]=Likes
                 # แต่เนื่องจากเราแยก Views ออกไปแล้ว เราจะสนใจแค่ 3 ตัวหลัง
                 # และเพื่อกันพลาด เราจะเช็คว่ามีข้อมูลพอไหม
