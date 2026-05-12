@@ -1,10 +1,17 @@
 import os
+import sys
+import subprocess
 import streamlit as st
 
-# --- โค้ดส่วนนี้จะบังคับให้ Streamlit ติดตั้ง Browser แค่ครั้งเดียวตอนเปิดแอป ---
+# --- บังคับดาวน์โหลด Browser และรอจนกว่าจะเสร็จ ---
 @st.cache_resource
 def install_playwright():
-    os.system("playwright install chromium")
+    try:
+        # ใช้ subprocess เพื่อบังคับให้ระบบรอจนกว่าจะติดตั้งเสร็จ
+        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
+        print("Playwright Chromium installed successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to install playwright: {e}")
 
 install_playwright()
 
