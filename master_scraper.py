@@ -122,27 +122,45 @@ def scrape_selenium_task(url):
             row["Engagement"] = row["Comments"] + row["Retweets_Shares"] + row["Likes"]
             
         elif platform == "Facebook":
-            time.sleep(5)
-            # Logic FB จากโค้ดล่าสุดของคุณ
-            try:
-                v_el = driver.find_element(By.XPATH, "//span[contains(@class, '_26fq')]|//span[contains(text(), 'Views')]")
-                row["Views"] = extract_numbers(v_el.text)
-            except: pass
+            time.sleep(2) # Facebook ต้องรอให้ตัวเลข Animation วิ่งเสร็จ
             
-            try:
-                r_xpath = "//div[contains(@class, 'x1i10hfl') and @role='button']//span[@class='xrbp0b2']"
-                row["Likes"] = extract_numbers(driver.find_element(By.XPATH, r_xpath).text)
-            except: pass
+            if "/videos" in url or "/watch" in url:
+                # กรณีเป็น Video
+                try:
+                    v_text = driver.find_element(By.XPATH, "//span[contains(@class, '_26fq')]|//span[contains(text(), 'Views')]").text
+                    row["Views"] = extract_numbers(v_text)
+                except: row["Views"] = 0
+                
+                try:
+                    # พยายามหา Reaction ใน Video
+                    r_text = driver.find_element(By.XPATH, "//div[contains(@class, 'x1i10hfl xjbqb8w x1ejq31n x18oe1m7 x1sy0etr xstzfhl x972fbf x10w94by x1qhh985 x14e42zd x9f619 x1ypdohk x3ct3a4 xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x18d9i69 x1c1uobl x16tdsg8 x1hl2dhg xggy1nq x1fmog5m xu25z0z x140muxe xo1y3bh x1n2onr6 x87ps6o x1lku1pv x1a2a7pz x1heor9g x78zum5 x6ikm8r x10wlt62')]").text
+                    row["Likes"] = extract_numbers(r_text)
+                except: row["Likes"] = 0
+            else:
+                # กรณีเป็น Post ปกติ (Photo/Link)
+                try:
+                    r_text = driver.find_element(By.XPATH, "//div[contains(@class, 'x9f619') and contains(text(), 'All reactions:')]/following-sibling::span").text
+                    row["Likes"] = extract_numbers(r_text)
+                except: row["Likes"] = 0
 
+            # ดึง Comments และ Shares (มักจะใช้ Class xkrqix3 เหมือนกัน)
             try:
-                stats = driver.find_elements(By.XPATH, "//span[contains(@class, 'xkrqix3')]")
-                row["Comments"] = extract_numbers(stats[0].text) if len(stats) > 0 else 0
-                row["Retweets_Shares"] = extract_numbers(stats[1].text) if len(stats) > 1 else 0
-            except: pass
+                elements = driver.find_elements(By.XPATH, "//span[contains(@class, 'xkrqix3')]|//div[contains(@data-testid, 'UFI2CommentsCount')]")
+                # กรองเอาเฉพาะตัวเลข
+                stat_vals = [extract_numbers(e.text) for e in elements if e.text.strip()]
+                row["Comments"] = stat_vals[0] if len(stat_vals) > 0 else 0
+                row["Retweets_Shares"] = stat_vals[1] if len(stat_vals) > 1 else 0
+            except:
+                pass
+
             row["Engagement"] = row["Likes"] + row["Comments"] + row["Retweets_Shares"]
 
-    except Exception as e: print(f"❌ {platform} Error: {str(e)[:50]}")
-    finally: driver.quit()
+        print(f"✅ {platform} Success: {url}")
+        
+    except Exception as e:
+        print(f"❌ {platform} Error {url}: {str(e)[:100]}")
+    finally:
+        driver.quit()
     return row
 
 # ─────────────────────────────────────────────────────────────────────────────
