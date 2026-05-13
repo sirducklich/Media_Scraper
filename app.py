@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import streamlit as st
+from master_scraper import scrape_selenium_task, scrape_tiktok_batch, scrape_youtube_api
 
 # --- บังคับดาวน์โหลด Browser และรอจนกว่าจะเสร็จ ---
 @st.cache_resource
@@ -42,26 +43,31 @@ if uploaded_file is not None:
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # แยกประเภท URL เหมือนเดิม
-        selenium_urls = [u for u in urls if "tiktok.com" not in u]
-        tiktok_urls = [u for u in urls if "tiktok.com" in u]
-        
+# คัดแยก URL ให้ถูกต้องทั้ง 3 แพลตฟอร์ม
+        yt_urls = [u for u in urls if "youtube.com" in u or "youtu.be" in u]
+        tt_urls = [u for u in urls if "tiktok.com" in u]
+        sel_urls = [u for u in urls if u not in yt_urls and u not in tt_urls]
+
         results = []
-        
-        # ดึงข้อมูล (ตัวอย่างแบบ Sequential เพื่อความเสถียรบน Web App)
-        with st.spinner('กำลังดึงข้อมูล... โปรดรอสักครู่'):
-            # ดึง Selenium (FB/X)
-            for i, url in enumerate(selenium_urls):
-                status_text.text(f"กำลังดึงข้อมูลจาก FB/X: {url}")
-                results.append(scrape_selenium_task(url))
-                progress_bar.progress((i + 1) / len(urls))
-            
-            # ดึง TikTok
-            if tiktok_urls:
-                status_text.text("กำลังดึงข้อมูลจาก TikTok...")
-                tt_results = asyncio.run(scrape_tiktok_batch(tiktok_urls))
+
+        # 1. ดึงข้อมูล YouTube
+        if yt_urls:
+            with st.spinner("กำลังดึงข้อมูลจาก YouTube..."):
+                for url in yt_urls:
+                    results.append(scrape_youtube_api(url))
+
+        # 2. ดึงข้อมูล Facebook / X (Selenium)
+        if sel_urls:
+            with st.spinner("กำลังดึงข้อมูลจาก Facebook / X..."):
+                for url in sel_urls:
+                    results.append(scrape_selenium_task(url))
+
+        # 3. ดึงข้อมูล TikTok
+        if tt_urls:
+            with st.spinner("กำลังดึงข้อมูลจาก TikTok..."):
+                # TikTok เป็น Async ต้องรันแบบรวบยอด
+                tt_results = asyncio.run(scrape_tiktok_batch(tt_urls))
                 results.extend(tt_results)
-                progress_bar.progress(1.0)
 
         # ส่วนที่ 3: แสดงผลและดาวน์โหลด
         st.success("ดึงข้อมูลเสร็จสิ้น!")
