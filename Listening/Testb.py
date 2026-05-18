@@ -31,8 +31,9 @@ def fetch_social_listening_data(keyword, date_after, pages_to_scrape=15, country
         # 2. Use the clean keyword and the official 'tbs' parameter
         payload = json.dumps({
             "q": keyword, 
-            "gl": country_code,
+            "gl": "th",
             "hl": "th",
+            "lr": "lang_th",
             "autocorrect": True,
             "page": current_page,
             "tbs": tbs_filter 
@@ -114,7 +115,7 @@ def save_to_csv(api_data, filename="market_insights.csv"):
         print("\n❌ No results found to save.")
 
 if __name__ == "__main__":
-    my_keyword = "WE Fitness"
+    my_keyword = '"WE Fitness Society" (site:facebook.com OR site:wefitnesssociety.com OR site:x.com OR site:instagram.com OR site:tiktok.com)'
     start_date = "2026-01-01" 
     
     print(f"Starting analysis for '{my_keyword}' in Thailand since {start_date}...")
