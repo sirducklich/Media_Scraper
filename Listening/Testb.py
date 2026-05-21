@@ -115,11 +115,12 @@ def save_to_csv(api_data, filename="market_insights.csv"):
         print("\n❌ No results found to save.")
 
 if __name__ == "__main__":
-    my_keyword = '"WE Fitness Society" (site:facebook.com OR site:wefitnesssociety.com OR site:x.com OR site:instagram.com OR site:tiktok.com)'
+    #my_keyword = '"WE Fitness Society" (site:facebook.com OR site:wefitnesssociety.com OR site:x.com OR site:instagram.com OR site:tiktok.com)'
+    my_keyword = '"สินเชื่อบ้าน"'
     start_date = "2026-01-01" 
     
     print(f"Starting analysis for '{my_keyword}' in Thailand since {start_date}...")
     
-    raw_data = fetch_social_listening_data(my_keyword, start_date, pages_to_scrape=10, country_code="th")
+    raw_data = fetch_social_listening_data(my_keyword, start_date, pages_to_scrape=1, country_code="th")
     
     save_to_csv(raw_data, f"Listening/insights_{my_keyword}.csv")

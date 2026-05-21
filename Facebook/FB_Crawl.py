@@ -18,12 +18,12 @@ def categorize_post(caption_text):
 
 async def scrape_dohome_fb(page_url, scroll_count=5):
     extracted_data = []
+    seen_captions = set() # กระปุกสำหรับเช็คข้อความซ้ำ
     
     async with async_playwright() as p:
-        # เปิดเบราว์เซอร์ โหลด State ที่ล็อกอินไว้แล้ว
         browser = await p.chromium.launch(headless=False) 
         context = await browser.new_context(
-            storage_state="Facebook/auth.json", # ต้องมีไฟล์นี้ใน Folder เดียวกัน
+            storage_state="Facebook/auth.json",
             viewport={'width': 1280, 'height': 900},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
@@ -32,7 +32,6 @@ async def scrape_dohome_fb(page_url, scroll_count=5):
         print(f"กำลังเปิดหน้าเพจ: {page_url}")
         await page.goto(page_url)
         
-        # รอให้หน้าเว็บโหลดสมบูรณ์ (รอจนกว่าช่องโพสต์แรกจะปรากฏ)
         try:
             await page.wait_for_selector('div[role="article"]', timeout=15000)
         except:
@@ -40,66 +39,46 @@ async def scrape_dohome_fb(page_url, scroll_count=5):
             await browser.close()
             return []
 
-        print("เริ่มทำการ Scroll เพื่อโหลดโพสต์ย้อนหลัง...")
+        print("เริ่มทำการดึงข้อมูลพร้อมกับ Scroll หน้าจอ...")
+        
+        # --- เริ่มลูป: ดึงข้อมูล -> เลื่อนจอ -> ดึงข้อมูล -> เลื่อนจอ ---
         for i in range(scroll_count):
-            await page.keyboard.press("PageDown")
-            await page.keyboard.press("PageDown") # กดสองครั้งเพื่อให้เลื่อนลงลึกขึ้น
+            print(f"\n--- Scroll ครั้งที่ {i+1}/{scroll_count} ---")
             
-            # หน่วงเวลาแบบสุ่ม (2-5 วินาที) เพื่อให้ดูเหมือนคนอ่านจริงๆ และป้องกันการถูกบล็อก
-            delay = random.uniform(2.5, 5.0)
-            print(f"Scroll ครั้งที่ {i+1}/{scroll_count} - รอ {delay:.2f} วินาที")
+            # 1. พยายามดึงข้อมูล ณ ตำแหน่งหน้าจอปัจจุบันก่อนเลื่อน
+            messages = page.locator('div[data-ad-comet-preview="message"]')
+            msg_count = await messages.count()
+            
+            if msg_count > 0:
+                for j in range(msg_count):
+                    try:
+                        full_text = await messages.nth(j).inner_text()
+                        full_text = full_text.strip()
+                        
+                        # เช็คว่าข้อความยาวเกิน 10 ตัวอักษร และ "ยังไม่เคยถูกดึงมาก่อน"
+                        if len(full_text) > 10 and full_text not in seen_captions:
+                            seen_captions.add(full_text) # จำไว้ว่าดึงโพสต์นี้ไปแล้ว
+                            category = categorize_post(full_text)
+                            
+                            extracted_data.append({
+                                "Post_URL": "N/A",
+                                "Caption": full_text,
+                                "Category": category,
+                                "Length": len(full_text)
+                            })
+                            print(f"  [+] เจอโพสต์ใหม่: {full_text[:30]}...")
+                    except:
+                        continue
+            
+            # 2. เลื่อนหน้าจอลง (PageDown 2 ครั้ง) เพื่อโหลดโพสต์ถัดไป
+            await page.keyboard.press("PageDown")
+            await page.keyboard.press("PageDown") 
+            
+            # 3. หน่วงเวลารอให้โพสต์ใหม่โหลดขึ้นมา
+            delay = random.uniform(3.0, 5.0)
             await asyncio.sleep(delay)
 
-        print("กำลังดึงข้อมูลโพสต์...")
-        # ใช้ Locator ที่อิงตาม ARIA Role ซึ่งเสถียรกว่าการใช้ชื่อ Class
-        posts = page.locator('div[role="article"]')
-        post_count = await posts.count()
-        
-        for i in range(post_count):
-            post_locator = posts.nth(i)
-            
-            try:
-                # พยายามหาข้อความในโพสต์ (Facebook มักเก็บข้อความไว้ใน div ที่มี dir="auto")
-                text_elements = post_locator.locator('div[data-ad-comet-preview="message"]')
-                
-                # รวมข้อความทั้งหมดในโพสต์นั้น
-                full_text = ""
-                text_count = await text_elements.count()
-                for j in range(text_count):
-                    text_content = await text_elements.nth(j).inner_text()
-                    full_text += text_content + "\n"
-                
-                full_text = full_text.strip()
-                
-                # ข้ามโพสต์ที่ไม่มีข้อความ (อาจจะเป็นโพสต์รูปภาพล้วน หรือวิดีโอล้วน)
-                if not full_text:
-                    continue
-                    
-                # ดึง URL ของโพสต์ (ถ้ามี) โพสต์มักจะมีลิงก์เวลาซ่อนอยู่
-                post_url = ""
-                links = post_locator.locator('a[role="link"][tabindex="0"]')
-                link_count = await links.count()
-                for k in range(link_count):
-                    href = await links.nth(k).get_attribute('href')
-                    if href and "/posts/" in href or "/videos/" in href or "/photos/" in href:
-                        post_url = href.split('?')[0] # ตัด parameter ต่อท้ายออก
-                        break
-
-                category = categorize_post(full_text)
-                
-                extracted_data.append({
-                    "Post_URL": post_url,
-                    "Caption": full_text,
-                    "Category": category,
-                    "Length": len(full_text)
-                })
-                
-            except Exception as e:
-                # หากดึงข้อมูลบางโพสต์พัง ให้ข้ามไปโพสต์ถัดไป
-                continue
-                
-        await browser.close()
-        
+        await browser.close()        
     return extracted_data
 
 # --- ส่วนของการรันสคริปต์ ---
