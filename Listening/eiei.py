@@ -23,11 +23,11 @@ def fetch_social_listening_data(keyword, date_after, date_before, exclude_sites=
     tbs_filter = f"cdr:1,cd_min:{formatted_start},cd_max:{formatted_end}"
 
     # 2. Append exclusions to the search query using Google's '-site:' operator
-    '''final_query = keyword
+    final_query = keyword
     if exclude_sites:
         for site in exclude_sites:
-            final_query += f" -site:{site}"'''
-    final_query = my_keyword        
+            final_query += f" -site:{site}"
+            
     print(f"Constructed Query: {final_query}")
 
     all_data = {
@@ -120,9 +120,10 @@ def save_to_csv(api_data, filename="market_insights.csv"):
         print("\n❌ No results found to save.")
 
 if __name__ == "__main__":
-    my_keyword = '"site:https://www.facebook.com/EmporiumEmquartier"'
+    # FIX: Removed the double quotes wrapping the string and the https://
+    my_keyword = "site:https://www.facebook.com/Emsphere.at.emdistrict"
     start_date = "2026-01-01"
-    end_date = "2026-06-01" # <-- Define your end date here
+    end_date = "2026-06-01" 
     
     # List the domains you want to exclude (do not include "www" or "https://")
     websites_to_ignore = [
@@ -138,11 +139,11 @@ if __name__ == "__main__":
         keyword=my_keyword, 
         date_after=start_date, 
         date_before=end_date, 
-        exclude_sites=websites_to_ignore, # <-- Pass the exclusion list
+        exclude_sites=websites_to_ignore, 
         pages_to_scrape=30, 
         country_code="th"
     )
     
-    # Format a safe filename
-    safe_filename = my_keyword.replace('"', '').replace(' ', '_')
+    # FIX: Stripped slashes and colons so the OS allows the file creation
+    safe_filename = my_keyword.replace('"', '').replace(':', '_').replace('/', '_').replace(' ', '_')
     save_to_csv(raw_data, f"Listening/insights_{safe_filename}.csv")

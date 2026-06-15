@@ -3,6 +3,7 @@ import time
 import re
 import asyncio
 import os
+import json  
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
@@ -26,7 +27,7 @@ YOUTUBE_API_KEY = "AIzaSyBcxyU9ZXsqNQrm7M2rTxInzZb5wNY1iqY"
 
 FIELDNAMES = [
     "Platform", "URL", "Author", "Heading", "Views", "Engagement",
-    "Likes", "Comments", "Retweets_Shares", "Reactions", "Createtime",
+    "Likes", "Comments", "Shares_Reposts", "Bookmarks", "Createtime",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -49,6 +50,13 @@ def get_driver():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
+    
+    # 🌟 1. บังคับขนาดหน้าจอให้กว้างเป็น Desktop เพื่อให้ XPath ไม่เพี้ยน
+    chrome_options.add_argument("--window-size=1920,1080")
+    
+    # 🌟 2. บังคับให้หน้าเว็บเป็นภาษาอังกฤษเสมอ ป้องกันข้อความภาษาไทยเปลี่ยน
+    chrome_options.add_argument("--lang=en-US")
+    
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     return webdriver.Chrome(options=chrome_options)
 
@@ -95,27 +103,87 @@ def scrape_youtube_api(url):
 def scrape_selenium_task(url):
     platform = "Facebook" if "facebook.com" in url or "fb.watch" in url else "Twitter"
     driver = get_driver()
-    wait = WebDriverWait(driver, 5)
+    wait = WebDriverWait(driver, 7) # เพิ่มเวลาเผื่อโหลด
     row = {f: 0 for f in FIELDNAMES}
     row.update({"Platform": platform, "URL": url, "Author": "", "Heading": "", "Createtime": ""})
 
     try:
-        driver.get(url)
         if platform == "Twitter":
-            wait.until(EC.presence_of_all_elements_located((By.XPATH, "//div[contains(@class, 'css-175oi2r r-xoduu5 r-1udh08x')]")))
-            time.sleep(1)
-            elements = driver.find_elements(By.XPATH, "//div[contains(@class, 'css-175oi2r r-xoduu5 r-1udh08x')]")
-            vals = [e.text for e in elements if e.text.strip()]
-            
-            if len(vals) >= 4:
-                row["Views"] = extract_numbers(vals[0])
-                row["Comments"] = extract_numbers(vals[1])
-                row["Retweets_Shares"] = extract_numbers(vals[2])
-                row["Likes"] = extract_numbers(vals[3])
-            row["Engagement"] = row["Comments"] + row["Retweets_Shares"] + row["Likes"]
+                    # ตรวจสอบไฟล์คุกกี้ auth.json
+                    if os.path.exists("auth.json"):
+                        try:
+                            driver.get("https://x.com")
+                            time.sleep(1)
+                            
+                            with open("auth.json", "r", encoding="utf-8") as f:
+                                cookies = json.load(f)
+                                for cookie in cookies:
+                                    selenium_cookie = {
+                                        "name": cookie["name"],
+                                        "value": cookie["value"],
+                                        "domain": cookie["domain"],
+                                        "path": cookie.get("path", "/"),
+                                        "secure": cookie.get("secure", True)
+                                    }
+                                    if "expirationDate" in cookie and cookie["expirationDate"] is not None:
+                                        selenium_cookie["expiry"] = int(cookie["expirationDate"])
+                                    
+                                    driver.add_cookie(selenium_cookie)
+                            
+                            print(f"🔑 โหลด Twitter Cookies สำเร็จสำหรับ: {url}")
+                        except Exception as ce:
+                            print(f"⚠️ ไม่สามารถใส่คุกกี้ Twitter ได้: {ce}")
+                    
+                    # เปิดลิงก์เป้าหมายจริง
+                    driver.get(url)
+                    
+                    try:
+                        # 🌟 รันสิทธิ์ด้วย Class หลักของคุณเหมือนเดิม เพื่อแก้ปัญหาบราวเซอร์จอขาว/Timeout
+                        wait.until(EC.presence_of_all_elements_located((By.XPATH, "//div[contains(@class, 'css-175oi2r r-xoduu5 r-1udh08x')]")))
+                        time.sleep(2)
+                    except Exception as wait_e:
+                        print(f"⚠️ Twitter Timeout (แต่จะพยายามดึงข้อมูลต่อ): {url}")
+
+                    # ─────────────────────────────────────────────────────────────────
+                    # 🌟 ท่าเจาะจง: ล็อกเป้าดึงทีละช่อง ถ้าไม่เจอให้ Pass (ข้าม) โดยไม่สลับช่อง
+                    # ─────────────────────────────────────────────────────────────────
+                    
+                    # 1. ยอด Views (ดึงจากลิงก์ Analytics)
+                    try: 
+                        v_el = driver.find_element(By.XPATH, "//a[contains(@href, '/analytics')]")
+                        row["Views"] = extract_numbers(v_el.text)
+                    except: pass
+
+                    # 2. ยอด Comments (เจาะจงจากป้าย reply)
+                    try: 
+                        c_el = driver.find_element(By.XPATH, "//*[@data-testid='reply']")
+                        row["Comments"] = extract_numbers(c_el.text)
+                    except: pass
+
+                    # 3. ยอด Retweets / Shares (เจาะจงจากป้าย retweet)
+                    try: 
+                        rt_el = driver.find_element(By.XPATH, "//*[@data-testid='retweet']")
+                        row["Shares_Reposts"] = extract_numbers(rt_el.text)
+                    except: pass
+
+                    # 4. ยอด Likes (เจาะจงจากป้าย like)
+                    try: 
+                        l_el = driver.find_element(By.XPATH, "//*[@data-testid='like']")
+                        row["Likes"] = extract_numbers(l_el.text)
+                    except: pass
+
+                    # 5. ยอด Bookmarks (เจาะจงจากป้าย bookmark)
+                    try: 
+                        b_el = driver.find_element(By.XPATH, "//*[@data-testid='bookmark']")
+                        row["Bookmarks"] = extract_numbers(b_el.text)
+                    except: pass
+
+                    # คำนวณยอดรวม Engagement 
+                    row["Engagement"] = row["Comments"] + row["Shares_Reposts"] + row["Likes"] + row["Bookmarks"]
             
         elif platform == "Facebook":
-            time.sleep(1)
+            driver.get(url)
+            time.sleep(2) # เพิ่มเวลาโหลดเผื่อเน็ตช้า
             if "/videos" in url or "/watch" in url:
                 try:
                     v_text = driver.find_element(By.XPATH, "//span[contains(@class, '_26fq')]|//span[contains(text(), 'Views')]").text
@@ -126,7 +194,6 @@ def scrape_selenium_task(url):
                     row["Likes"] = extract_numbers(r_text)
                 except: row["Likes"] = 0
                 
-                # สำหรับ Video: พยายามหา Comments และ Shares ดักไว้ด้วย
                 try:
                     elements = driver.find_elements(By.XPATH, "//span[contains(@class, 'xkrqix3')]|//div[contains(@data-testid, 'UFI2CommentsCount')]")
                     for e in elements:
@@ -134,37 +201,31 @@ def scrape_selenium_task(url):
                         if "comments" in txt:
                             row["Comments"] = extract_numbers(txt)
                         elif "share" in txt:
-                            row["Retweets_Shares"] = extract_numbers(txt)
+                            row["Shares_Reposts"] = extract_numbers(txt) # 🌟 อัปเดตตัวแปรตาม FIELDNAMES
                 except: pass
                 
             else:
-                # 🌟กรณีเป็น Post ปกติ (Photo/Link) - ปรับเงื่อนไขใหม่ตามที่คุณต้องการ
                 try:
                     r_text = driver.find_element(By.XPATH, "//div[contains(@class, 'x9f619') and contains(text(), 'All reactions:')]/following-sibling::span").text
                     row["Likes"] = extract_numbers(r_text)
                 except: 
-                    # ดักกรณีแผง Reactions หลักหาไม่เจอ ให้ลองหาตัวเลขยอด Likes รวมรอบๆ
                     try:
                         r_text = driver.find_element(By.XPATH, "//span[@class='xrbpy55 x10wh9bi x1wd73v9 x1n2onr6 x1ja2u2z']").text
                         row["Likes"] = extract_numbers(r_text)
                     except: row["Likes"] = 0
 
-                # 🌟 ใช้เงื่อนไขกวาดหาคำว่า comment / share เจาะจงคอลัมน์ ป้องกันการสลับแถว
                 try:
-                    # หาจุดที่มีตัวเลขสถิติของ Post (มักใช้คลาสตระกูล xkrqix3)
                     elements = driver.find_elements(By.XPATH, "//span[contains(@class, 'xkrqix3')]|//div[contains(@data-testid, 'UFI2CommentsCount')]|//span[contains(@class, 'x193iq5w')]")
-                    
                     for e in elements:
-                        txt = e.text.lower() # แปลงเป็นพิมพ์เล็กเพื่อเช็คง่ายๆ
+                        txt = e.text.lower()
                         if "comments" in txt:
                             row["Comments"] = extract_numbers(txt)
                         elif "share" in txt:
-                            row["Retweets_Shares"] = extract_numbers(txt)
+                            row["Shares_Reposts"] = extract_numbers(txt) # 🌟 อัปเดตตัวแปรตาม FIELDNAMES
                 except Exception as ex:
                     print(f"⚠️ FB Stats Extract Sub-Error: {ex}")
 
-            # สรุปยอด Engagement รวมของ Facebook
-            row["Engagement"] = row["Likes"] + row["Comments"] + row["Retweets_Shares"]
+            row["Engagement"] = row["Likes"] + row["Comments"] + row["Shares_Reposts"]
 
         print(f"✅ {platform} Success: {url}")
     except Exception as e:
@@ -173,27 +234,59 @@ def scrape_selenium_task(url):
         driver.quit()
     return row
 
-# ── TikTok Async ──
+# ── TikTok Async (ปรับปรุงแล้ว: เพิ่มระบบ Retry และ Delay) ──
 async def scrape_tiktok_batch(urls):
+    import random # ต้อง import ใน scope นี้หรือ import ไว้บนสุดของไฟล์
     results = []
     async with TikTokApi() as api:
+        # ปรับ headless เป็น True ตามเดิมของคุณ แต่เน้นเรื่อง session
         await api.create_sessions(ms_tokens=[os.environ.get("ms_token")], num_sessions=1, sleep_after=2, headless=True)
+        
         for url in urls:
             row = {f: 0 for f in FIELDNAMES}
             row.update({"Platform": "TikTok", "URL": url, "Author": "", "Heading": "", "Createtime": ""})
-            try:
-                video = api.video(url=url)
-                info = await video.info()
-                s = info.get("stats", {})
-                row.update({
-                    "Views": s.get("playCount", 0), "Likes": s.get("diggCount", 0),
-                    "Comments": s.get("commentCount", 0), "Retweets_Shares": s.get("shareCount", 0),
-                    "Author": info["author"].get("uniqueId", ""), "Heading": info.get("desc", "")[:100],
-                    "Engagement": s.get("diggCount", 0) + s.get("commentCount", 0) + s.get("shareCount", 0)
-                })
-                print(f"✅ TikTok Success: {url}")
-            except Exception as e: 
-                print(f"❌ TikTok Error: {e}")
+            
+            max_retries = 3
+            success = False
+            
+            for attempt in range(max_retries):
+                try:
+                    video = api.video(url=url)
+                    info = await video.info()
+                    s = info.get("stats", {})
+                    
+                    # 📌 ป้องกัน Error กรณีค่าเป็น String หรือไม่มีค่า
+                    def safe_int(val):
+                        try: return int(val)
+                        except: return 0
+
+                    likes = safe_int(s.get("diggCount", 0))
+                    comments = safe_int(s.get("commentCount", 0))
+                    shares = safe_int(s.get("shareCount", 0))
+                    bookmarks = safe_int(s.get("collectCount", 0))
+                    
+                    row.update({
+                        "Views": safe_int(s.get("playCount", 0)), 
+                        "Likes": likes,
+                        "Comments": comments, 
+                        "Shares_Reposts": shares,
+                        "Bookmarks": bookmarks,
+                        "Author": info.get("author", {}).get("uniqueId", ""), 
+                        "Heading": info.get("desc", "")[:100],
+                        "Engagement": likes + comments + shares + bookmarks
+                    })
+                    print(f"✅ TikTok Success: {url}")
+                    success = True
+                    break # ออกจากลูป retry
+                    
+                except Exception as e:
+                    print(f"⚠️ TikTok Attempt {attempt + 1} failed for {url}: {e}")
+                    if attempt < max_retries - 1:
+                        wait = random.uniform(3, 6)
+                        await asyncio.sleep(wait)
+                    else:
+                        print(f"❌ TikTok Final Error after {max_retries} attempts: {url}")
+            
             results.append(row)
     return results
 

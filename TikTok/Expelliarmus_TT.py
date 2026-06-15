@@ -21,7 +21,7 @@ def extract_tiktok_data(data, url):
     digg_count = safe_int(stats.get('diggCount', 0))
     comment_count = safe_int(stats.get('commentCount', 0))
     share_count = safe_int(stats.get('shareCount', 0))
-    
+    collect_count = safe_int(stats.get('collectCount', 0))
     create_time = safe_int(data.get('createTime', 0))
     
     # Calculate Excel date (skip if create_time is missing to avoid weird 1970 dates)
@@ -32,13 +32,14 @@ def extract_tiktok_data(data, url):
         'URLs': url,
         'Heading': data.get('desc', ''),
         'Views': play_count,
-        'Engagement': digg_count + comment_count + share_count,
+        'Engagement': digg_count + comment_count + share_count + collect_count,  # Include bookmarks in engagement
         'Action': comment_count + share_count,
         'Likes': digg_count,
         'Comments': comment_count,
         'Shares': share_count,
         'Createtime': excel_date,
-        'Duration': safe_int(data.get('video', {}).get('duration', 0))
+        'Duration': safe_int(data.get('video', {}).get('duration', 0)),
+        'Bookmark': collect_count
     }
 
 # Read URLs from text file
@@ -53,13 +54,14 @@ async def fetch_and_save_tiktok_data():
         # Open CSV file to write results
         with open("TikTok/Tiktok_output.csv", "w", newline="", encoding="utf-8") as csvfile:
             csv_writer = csv.writer(csvfile, delimiter=';')
-            csv_writer.writerow(["Author", "URLs", "Heading", "Views", "Engagement", "Action", "Likes", "Comments", "Shares", "Createtime", "Duration"])  # Write header
+            csv_writer.writerow(["Author", "URLs", "Heading", "Views", "Engagement", "Action", "Likes", "Comments", "Shares", "Createtime", "Duration", "Bookmark"])  # Write header
 
             for url in urls:
                 try:
                     video = api.video(url=url)
                     video_info = await video.info()
                     extracted_data = extract_tiktok_data(video_info, url)
+                    #print(video_info)
 
                     # Write extracted data to CSV
                     csv_writer.writerow(extracted_data.values())
